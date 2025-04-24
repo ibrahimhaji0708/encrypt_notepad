@@ -1,78 +1,61 @@
 import 'package:flutter/material.dart';
 //
-import 'dart:ffi';
-import 'dart:io';
-import 'package:ffi/ffi.dart';
+// import 'dart:ffi';
+// import 'dart:io';
+// import 'package:ffi/ffi.dart';
 
-final dylib = Platform.isLinux
-    ? DynamicLibrary.open('rust/target/release/librust.so') 
-    : throw UnsupportedError("only linux is supported for now..");
+import 'ui/screens/home_screen.dart';
 
-class RustImpl {
-  final DynamicLibrary dylib;
+// final dylib = Platform.isLinux
+//     ? DynamicLibrary.open('rust/target/release/librust.so') 
+//     : throw UnsupportedError("only linux is supported for now..");
 
-  RustImpl(this.dylib);
 
-  Pointer<Utf8> Function(Pointer<Utf8>) get encryptText => dylib
-      .lookupFunction<
-          Pointer<Utf8> Function(Pointer<Utf8>),
-          Pointer<Utf8> Function(Pointer<Utf8>)>('encrypt_text');
+// class RustImpl {
+//   final DynamicLibrary dylib;
 
-  String encryptMessage(String message) {
-    final textPointer = message.toNativeUtf8();
-    final encryptedPointer = encryptText(textPointer);
-    final encryptedMessage = encryptedPointer.toDartString();
+//   RustImpl(this.dylib);
 
-    malloc.free(textPointer);
-    malloc.free(encryptedPointer);
+//   Pointer<Utf8> Function(Pointer<Utf8>) get encryptText => dylib
+//       .lookupFunction<
+//           Pointer<Utf8> Function(Pointer<Utf8>),
+//           Pointer<Utf8> Function(Pointer<Utf8>)>('encrypt_text');
 
-    return encryptedMessage;
-  }
-}
+//   String encryptMessage(String message) {
+//     final textPointer = message.toNativeUtf8();
+//     final encryptedPointer = encryptText(textPointer);
+//     final encryptedMessage = encryptedPointer.toDartString();
+
+//     malloc.free(textPointer);
+//     malloc.free(encryptedPointer);
+
+//     return encryptedMessage;
+//   }
+// }
+//error in code , fix later
 
 void main() {
-  runApp(MyApp());
+  runApp(const EncryptedNotepadApp());
 }
 
-class MyApp extends StatelessWidget {
-  MyApp({super.key});
-
-  final TextEditingController controller = TextEditingController();
-  final ValueNotifier<String> result = ValueNotifier('');
+class EncryptedNotepadApp extends StatelessWidget {
+  const EncryptedNotepadApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(title: Text('Encrypted Notepad')),
-        body: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              TextField(
-                controller: controller,
-                decoration: InputDecoration(labelText: 'enter message'),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  final encrypted = await encryptMessage(controller.text);
-                  result.value = encrypted;
-                },
-                child: Text('Encrypt'),
-              ),
-              ValueListenableBuilder(
-                valueListenable: result,
-                builder: (context, value, _) => Text('Encrypted: $value'),
-              ),
-            ],
-          ),
-        ),
+      title: 'Encrypted Notepad',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
       ),
+      home: const HomeScreen(),
     );
   }
-
-  Future<String> encryptMessage(String message) async {
-    final api = RustImpl(dylib);
-    return api.encryptMessage(message);
-  }
 }
+
+  // Future<String> encryptMessage(String message) async {
+  //   final api = RustImpl(dylib);
+  //   return api.encryptMessage(message);
+  // }
