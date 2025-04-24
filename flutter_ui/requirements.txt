@@ -1,0 +1,6 @@
+flutter pkgs:
+flutter_rust_bridge;
+file_picker
+path_provider
+flutter_bloc
+fluent_ui / material_ui

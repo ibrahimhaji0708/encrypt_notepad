@@ -1,0 +1,6 @@
+tokio - async runtine
+warp or async - http server 
+serde - JSON serialization 
+flutter_rust_bridge - FFI between Flutter and Rust 
+rustls - TLS
+ring or argon2 - crypto 
