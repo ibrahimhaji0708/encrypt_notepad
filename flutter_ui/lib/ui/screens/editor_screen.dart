@@ -1,78 +1,115 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
+import '../../api_interface.dart';
 
 class EditorScreen extends StatefulWidget {
-  const EditorScreen({super.key});
+  final String? noteTitle;
+
+  const EditorScreen({super.key, this.noteTitle});
 
   @override
   State<EditorScreen> createState() => _EditorScreenState();
 }
 
 class _EditorScreenState extends State<EditorScreen> {
-  final TextEditingController _controller = TextEditingController();
-  String _title = "untitled";
+  final _titleController = TextEditingController();
+  final _contentController = TextEditingController();
+  bool _isLoading = false;
 
-  void _renameNote() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        final TextEditingController titleController =
-            TextEditingController(text: _title);
-        return AlertDialog(
-          title: Text('Rename Note'),
-          content: TextField(
-            controller: titleController,
-            decoration: InputDecoration(hintText: 'enter a new title'),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _title = titleController.text;
-                });
-                Navigator.of(context).pop();
-              },
-              child: Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
+  @override
+  void initState() {
+    super.initState();
+    if (widget.noteTitle != null) {
+      _loadNote(widget.noteTitle!);
+    }
+  }
+
+  Future<void> _loadNote(String title) async {
+    setState(() => _isLoading = true);
+    try {
+      final content = await api.loadNoteFromDisk(title);
+      _titleController.text = title;
+      _contentController.text = content;
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load note: $e')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _saveNote() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/$_title.txt');
-    await file.writeAsString(_controller.text);
-    Navigator.pop(context, true);
+  final title = _titleController.text.trim();
+  final content = _contentController.text.trim();
+
+  print("Saving note: Title = $title, Content = $content");
+
+  if (title.isEmpty || content.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Title and content cannot be empty')),
+    );
+    return;
   }
+
+  setState(() => _isLoading = true);
+  try {
+    await api.saveNoteToDisk(title, content);
+    if (context.mounted) Navigator.pop(context, true); // Return with "note saved"
+  } catch (e) {
+    print("Error saving note: $e");  // Additional debugging log
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Failed to save note: $e')),
+    );
+  } finally {
+    setState(() => _isLoading = false);
+  }
+}
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: BackButton(),
-        title: GestureDetector(
-          onTap: _renameNote,
-          child: Text(_title),
-        ),
+        title: const Text('Editor'),
         actions: [
-          IconButton(
-            icon: Icon(Icons.save),
+          ElevatedButton(
             onPressed: _saveNote,
+            child: const Text('Save'),
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: TextField(
-          controller: _controller,
-          maxLines: null,
-          expands: true,
-          decoration: InputDecoration.collapsed(hintText: 'Start writing...'),
-        ),
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _titleController,
+                    decoration: const InputDecoration(labelText: 'Title'),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: TextField(
+                      controller: _contentController,
+                      maxLines: null,
+                      expands: true,
+                      decoration: const InputDecoration(
+                        hintText: 'Write your note here...',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
     );
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _contentController.dispose();
+    super.dispose();
   }
 }

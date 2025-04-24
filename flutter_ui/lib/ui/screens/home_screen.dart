@@ -1,8 +1,5 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-
-import 'editor_screen.dart';
+import '../../api_interface.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -12,42 +9,92 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<FileSystemEntity> notes = [];
+  List<String> noteTitles = [];
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadNotes();
+    loadNotes();
   }
 
-  Future<void> _loadNotes() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final files = dir.listSync().where((file) => file.path.endsWith('.txt')).toList();
-    setState(() {
-      notes = files;
-    });
+  Future<void> loadNotes() async {
+    try {
+      final titles = await api.listNoteTitles();
+      setState(() {
+        noteTitles = titles;
+        isLoading = false;
+      });
+    } catch (e) {
+      print("Error loading notes: $e");
+      setState(() => isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Encrypted Notepad')),
-      body: ListView.builder(
-        itemCount: notes.length,
-        itemBuilder: (context, index) {
-          final name = notes[index].path.split('/').last.replaceAll('.txt', '');
-          return ListTile(title: Text(name));
-        },
+      appBar: AppBar(
+        title: const Text('Encrypted Notepad'),
+        centerTitle: true,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : noteTitles.isEmpty
+                ? const Center(child: Text('No notes found.'))
+                : GridView.builder(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 16.0,
+                      mainAxisSpacing: 16.0,
+                      childAspectRatio: 1.2,
+                    ),
+                    itemCount: noteTitles.length,
+                    itemBuilder: (context, index) {
+                      final title = noteTitles[index];
+                      return GestureDetector(
+                        onTap: () async {
+                          final content = await api.loadNoteFromDisk(title);
+                          Navigator.pushNamed(
+                            context,
+                            '/editor',
+                            arguments: {'title': title, 'content': content},
+                          );
+                        },
+                        child: Card(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          elevation: 5,
+                          color: Colors.indigo.shade100,
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Text(
+                                title,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => EditorScreen()),
-          );
-          if (result == true) _loadNotes();
+          final result = await Navigator.pushNamed(context, '/editor');
+          if (result == true) {
+            await loadNotes();
+          }
         },
-        child: Icon(Icons.add),
+        child: const Icon(Icons.add),
       ),
     );
   }
