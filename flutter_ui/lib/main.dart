@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
+import 'api_interface.dart';
 import 'ui/screens/editor_screen.dart';
 import 'ui/screens/home_screen.dart';
 
 void main() {
+   WidgetsFlutterBinding.ensureInitialized();
+  initRustApi();
   runApp(const EncryptedNotepadApp());
 }
 
