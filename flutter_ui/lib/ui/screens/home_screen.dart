@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../api_interface.dart';
+import 'package:flutter_ui/api_interface.dart'; // wherever you put your Rust API
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -9,92 +9,78 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<String> noteTitles = [];
-  bool isLoading = true;
+  late Future<List<String>> _noteTitles;
 
   @override
   void initState() {
     super.initState();
-    loadNotes();
+    _fetchNotes();
   }
 
-  Future<void> loadNotes() async {
-    try {
-      final titles = await api.listNoteTitles();
-      setState(() {
-        noteTitles = titles;
-        isLoading = false;
-      });
-    } catch (e) {
-      print("Error loading notes: $e");
-      setState(() => isLoading = false);
-    }
+  void _fetchNotes() {
+    _noteTitles = api.listNoteTitles();
+  }
+
+  void _refreshNotes() {
+    setState(() {
+      _fetchNotes();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Encrypted Notepad'),
-        centerTitle: true,
+        title: const Text('My Notes'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : noteTitles.isEmpty
-                ? const Center(child: Text('No notes found.'))
-                : GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 16.0,
-                      mainAxisSpacing: 16.0,
-                      childAspectRatio: 1.2,
-                    ),
-                    itemCount: noteTitles.length,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: ElevatedButton(
+              onPressed: () async {
+                // Navigate to editor
+                final result = await Navigator.pushNamed(context, '/editor');
+
+                // After coming back from editor, refresh notes
+                if (result == true) {
+                  _refreshNotes();
+                }
+              },
+              child: const Text('Create New Note'),
+            ),
+          ),
+          Expanded(
+            child: FutureBuilder<List<String>>(
+              future: _noteTitles,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasError) {
+                  return Center(child: Text('Error loading notes: ${snapshot.error}'));
+                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(child: Text('No notes available.'));
+                } else {
+                  final notes = snapshot.data!;
+                  return ListView.builder(
+                    itemCount: notes.length,
                     itemBuilder: (context, index) {
-                      final title = noteTitles[index];
-                      return GestureDetector(
-                        onTap: () async {
-                          final content = await api.loadNoteFromDisk(title);
-                          Navigator.pushNamed(
-                            context,
-                            '/editor',
-                            arguments: {'title': title, 'content': content},
-                          );
-                        },
-                        child: Card(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          elevation: 5,
-                          color: Colors.indigo.shade100,
-                          child: Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Text(
-                                title,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        child: ListTile(
+                          title: Text(notes[index]),
+                          onTap: () {
+                            // ontapped read contents of the note 
+                          },
                         ),
                       );
                     },
-                  ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.pushNamed(context, '/editor');
-          if (result == true) {
-            await loadNotes();
-          }
-        },
-        child: const Icon(Icons.add),
+                  );
+                }
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
