@@ -22,7 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _noteTitles = api.listNoteTitles();
   }
 
-  void _refreshNotes() {
+  Future<void> _refreshNotes() async {
     setState(() {
       _fetchNotes();
     });
@@ -73,18 +73,21 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: ListTile(
                           title: Text(noteTitle),
                           onTap: () async {
-                            final content = await api.loadNoteFromDisk(noteTitle);
+                            final content = await api.loadNoteFromDisk(
+                              noteTitle,
+                            );
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => EditorScreen(
-                                  initialTitle: noteTitle,
-                                  initialContent: content,
-                                ),
+                                builder:
+                                    (context) => EditorScreen(
+                                      initialTitle: noteTitle,
+                                      initialContent: content,
+                                    ),
                               ),
                             ).then((value) {
                               if (value == true) {
-                                _refreshNotes(); // refresh after editing
+                                _refreshNotes();
                               }
                             });
                           },

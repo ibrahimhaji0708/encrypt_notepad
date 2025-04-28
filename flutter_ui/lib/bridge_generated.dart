@@ -1,3 +1,5 @@
+//auto generated file, do not modify..
+
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 
@@ -43,14 +45,14 @@ class RustImpl {
     final resultPtr = _loadNoteFromDisk(titlePtr);
     final content = resultPtr.toDartString();
     malloc.free(titlePtr);
-    malloc.free(resultPtr); // ok to free if Rust returns malloc-ed string
+    malloc.free(resultPtr);
     return content;
   }
 
   Future<List<String>> listNoteTitles() async {
     final resultPtr = _listNoteTitles();
     final rawString = resultPtr.toDartString();
-    malloc.free(resultPtr); // ok to free if Rust returns malloc-ed string
+    malloc.free(resultPtr);
     return rawString.split(';').where((e) => e.isNotEmpty).toList();
   }
 

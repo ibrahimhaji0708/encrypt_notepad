@@ -36,6 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   ffi: ^2.1.0
   path_provider: ^2.1.1
+  flutter_rust_bridge: ^2.9.0
 
 dev_dependencies:
   flutter_test:

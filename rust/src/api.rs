@@ -42,24 +42,27 @@ pub fn load_note_from_disk(note_title: String) -> Result<String, String> {
     Ok(content)
 }
 
+
 #[unsafe(no_mangle)]
 pub extern "C" fn list_note_titles() -> *mut c_char {
-    let titles = "title1;title2;title3"; // static input 
-    let c_string = CString::new(titles).unwrap();
-    c_string.into_raw()
-    // let dir = notes_dir();
-    // let mut titles = Vec::new();
+    let dir = notes_dir();
+    let mut titles = Vec::new();
 
-    // if dir.exists() {
-    //     for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
-    //         if let Ok(entry) = entry {
-    //             if let Some(name) = entry.file_name().to_str() {
-    //                 if let Some(title) = name.strip_suffix(".txt") {
-    //                     titles.push(title.to_string());
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-    // Ok(titles)
+    if dir.exists() {
+        let entries = fs::read_dir(dir).unwrap();
+
+        for entry in entries {
+            if let Ok(entry) = entry {
+                if let Some(name) = entry.file_name().to_str() {
+                    if let Some(title) = name.strip_suffix(".txt") {
+                        titles.push(title.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    let titles_str = titles.join(";");
+    let c_string = CString::new(titles_str).unwrap();
+    c_string.into_raw()
 }
