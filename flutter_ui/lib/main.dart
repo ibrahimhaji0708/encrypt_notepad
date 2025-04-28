@@ -43,7 +43,7 @@ class EncryptedNotepadApp extends StatelessWidget {
       ),
       home: const HomeScreen(),
       routes: {
-        '/editor': (context) => const EditorScreen(),
+        '/editor': (context) => const EditorScreen(initialContent: '', initialTitle: '',),
       },
     );
   }

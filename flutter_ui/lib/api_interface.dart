@@ -23,7 +23,7 @@ late final RustImpl api;
 //android
 void initRustApi() {
   try {
-    final dylib = DynamicLibrary.open("librust.so");
+    final dylib = DynamicLibrary.open("assets/librust.so");
     api = RustImpl(dylib);
     print('Rust dynamic library loaded successfully.');
   } catch (e) {

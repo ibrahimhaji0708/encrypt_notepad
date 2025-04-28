@@ -6,38 +6,30 @@ class RustImpl {
 
   RustImpl(this.dylib);
 
-  void Function(Pointer<Utf8>, Pointer<Utf8>) get _saveNoteToDisk =>
+  late final void Function(Pointer<Utf8>, Pointer<Utf8>) _saveNoteToDisk =
       dylib.lookupFunction<
-        Void Function(Pointer<Utf8>, Pointer<Utf8>),
-        void Function(Pointer<Utf8>, Pointer<Utf8>)
+          Void Function(Pointer<Utf8>, Pointer<Utf8>),
+          void Function(Pointer<Utf8>, Pointer<Utf8>)
       >('save_note_to_disk');
 
-  Pointer<Utf8> Function(Pointer<Utf8>) get _loadNoteFromDisk =>
+  late final Pointer<Utf8> Function(Pointer<Utf8>) _loadNoteFromDisk =
       dylib.lookupFunction<
-        Pointer<Utf8> Function(Pointer<Utf8>),
-        Pointer<Utf8> Function(Pointer<Utf8>)
+          Pointer<Utf8> Function(Pointer<Utf8>),
+          Pointer<Utf8> Function(Pointer<Utf8>)
       >('load_note_from_disk');
 
-  Pointer<Utf8> Function(Pointer<Utf8>) get encryptText => dylib.lookupFunction<
-    Pointer<Utf8> Function(Pointer<Utf8>),
-    Pointer<Utf8> Function(Pointer<Utf8>)
-  >('encrypt_text');
+  late final Pointer<Utf8> Function() _listNoteTitles =
+      dylib.lookupFunction<
+          Pointer<Utf8> Function(),
+          Pointer<Utf8> Function()
+      >('list_note_titles');
 
-  //
-  Pointer<Utf8> Function() get _listNoteTitles =>
-      dylib.lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
-        'list_note_titles',
-      );
+  late final Pointer<Utf8> Function(Pointer<Utf8>) encryptText =
+      dylib.lookupFunction<
+          Pointer<Utf8> Function(Pointer<Utf8>),
+          Pointer<Utf8> Function(Pointer<Utf8>)
+      >('encrypt_text');
 
-  Future<List<String>> listNoteTitles() async {
-    final resultPtr = _listNoteTitles();
-    final rawString = resultPtr.toDartString();
-    malloc.free(resultPtr);
-
-    return rawString.split(';').where((e) => e.isNotEmpty).toList();
-  }
-  //
-  
   Future<void> saveNoteToDisk(String noteTitle, String noteContent) async {
     final titlePtr = noteTitle.toNativeUtf8();
     final contentPtr = noteContent.toNativeUtf8();
@@ -51,8 +43,15 @@ class RustImpl {
     final resultPtr = _loadNoteFromDisk(titlePtr);
     final content = resultPtr.toDartString();
     malloc.free(titlePtr);
-    malloc.free(resultPtr);
+    malloc.free(resultPtr); // ok to free if Rust returns malloc-ed string
     return content;
+  }
+
+  Future<List<String>> listNoteTitles() async {
+    final resultPtr = _listNoteTitles();
+    final rawString = resultPtr.toDartString();
+    malloc.free(resultPtr); // ok to free if Rust returns malloc-ed string
+    return rawString.split(';').where((e) => e.isNotEmpty).toList();
   }
 
   String encryptMessage(String message) {

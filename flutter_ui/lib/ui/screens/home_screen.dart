@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_ui/api_interface.dart'; // wherever you put your Rust API
+import 'package:flutter_ui/api_interface.dart';
+import 'editor_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -30,19 +31,15 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Notes'),
-      ),
+      appBar: AppBar(title: const Text('My Notes')),
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: ElevatedButton(
               onPressed: () async {
-                // Navigate to editor
                 final result = await Navigator.pushNamed(context, '/editor');
 
-                // After coming back from editor, refresh notes
                 if (result == true) {
                   _refreshNotes();
                 }
@@ -57,7 +54,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 } else if (snapshot.hasError) {
-                  return Center(child: Text('Error loading notes: ${snapshot.error}'));
+                  return Center(
+                    child: Text('Error loading notes: ${snapshot.error}'),
+                  );
                 } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return const Center(child: Text('No notes available.'));
                 } else {
@@ -65,12 +64,29 @@ class _HomeScreenState extends State<HomeScreen> {
                   return ListView.builder(
                     itemCount: notes.length,
                     itemBuilder: (context, index) {
+                      final noteTitle = notes[index];
                       return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         child: ListTile(
-                          title: Text(notes[index]),
-                          onTap: () {
-                            // ontapped read contents of the note 
+                          title: Text(noteTitle),
+                          onTap: () async {
+                            final content = await api.loadNoteFromDisk(noteTitle);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => EditorScreen(
+                                  initialTitle: noteTitle,
+                                  initialContent: content,
+                                ),
+                              ),
+                            ).then((value) {
+                              if (value == true) {
+                                _refreshNotes(); // refresh after editing
+                              }
+                            });
                           },
                         ),
                       );
