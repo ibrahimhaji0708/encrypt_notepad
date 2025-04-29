@@ -1,8 +1,6 @@
 use std::ffi::{c_char, CStr, CString};
-use std::fs::{self, File};
-use std::io::Read;
+use std::fs;
 use std::path::PathBuf;
-use flutter_rust_bridge::frb;
 
 fn notes_dir() -> PathBuf {
     let mut dir = std::env::current_dir().unwrap_or_default();
@@ -31,15 +29,17 @@ pub extern "C" fn save_note_to_disk(title: *const c_char, content: *const c_char
         println!("Note saved: {title}");
     }
 }
+//corrected code for load_note_func 
+#[unsafe(no_mangle)]
+pub extern "C" fn load_note_from_disk(title: *const c_char) -> *mut c_char {
+    let title_str = unsafe { CStr::from_ptr(title).to_str().unwrap_or("Untitled") };
 
-#[frb]
-pub fn load_note_from_disk(note_title: String) -> Result<String, String> {
     let mut path = notes_dir();
-    path.push(format!("{note_title}.txt"));
-    let mut file = File::open(path).map_err(|e| e.to_string())?;
-    let mut content = String::new();
-    file.read_to_string(&mut content).map_err(|e| e.to_string())?;
-    Ok(content)
+    path.push(format!("{title_str}.txt"));
+
+    let content = fs::read_to_string(&path).unwrap_or_default();
+    let c_string = CString::new(content).unwrap();
+    c_string.into_raw()
 }
 
 
@@ -65,4 +65,13 @@ pub extern "C" fn list_note_titles() -> *mut c_char {
     let titles_str = titles.join(";");
     let c_string = CString::new(titles_str).unwrap();
     c_string.into_raw()
+}
+
+// free up memory 
+#[unsafe(no_mangle)]
+pub extern "C" fn free_string(ptr: *mut c_char) {
+    unsafe {
+        if ptr.is_null() { return; }
+        let _ = CString::from_raw(ptr); // will drop and free memory
+    }
 }

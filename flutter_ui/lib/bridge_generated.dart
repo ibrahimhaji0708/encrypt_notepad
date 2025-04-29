@@ -8,28 +8,27 @@ class RustImpl {
 
   RustImpl(this.dylib);
 
-  late final void Function(Pointer<Utf8>, Pointer<Utf8>) _saveNoteToDisk =
-      dylib.lookupFunction<
-          Void Function(Pointer<Utf8>, Pointer<Utf8>),
-          void Function(Pointer<Utf8>, Pointer<Utf8>)
+  late final void Function(Pointer<Utf8>, Pointer<Utf8>) _saveNoteToDisk = dylib
+      .lookupFunction<
+        Void Function(Pointer<Utf8>, Pointer<Utf8>),
+        void Function(Pointer<Utf8>, Pointer<Utf8>)
       >('save_note_to_disk');
 
-  late final Pointer<Utf8> Function(Pointer<Utf8>) _loadNoteFromDisk =
-      dylib.lookupFunction<
-          Pointer<Utf8> Function(Pointer<Utf8>),
-          Pointer<Utf8> Function(Pointer<Utf8>)
+  late final Pointer<Utf8> Function(Pointer<Utf8>) _loadNoteFromDisk = dylib
+      .lookupFunction<
+        Pointer<Utf8> Function(Pointer<Utf8>),
+        Pointer<Utf8> Function(Pointer<Utf8>)
       >('load_note_from_disk');
 
-  late final Pointer<Utf8> Function() _listNoteTitles =
-      dylib.lookupFunction<
-          Pointer<Utf8> Function(),
-          Pointer<Utf8> Function()
-      >('list_note_titles');
+  late final Pointer<Utf8> Function() _listNoteTitles = dylib
+      .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
+        'list_note_titles',
+      );
 
-  late final Pointer<Utf8> Function(Pointer<Utf8>) encryptText =
-      dylib.lookupFunction<
-          Pointer<Utf8> Function(Pointer<Utf8>),
-          Pointer<Utf8> Function(Pointer<Utf8>)
+  late final Pointer<Utf8> Function(Pointer<Utf8>) encryptText = dylib
+      .lookupFunction<
+        Pointer<Utf8> Function(Pointer<Utf8>),
+        Pointer<Utf8> Function(Pointer<Utf8>)
       >('encrypt_text');
 
   Future<void> saveNoteToDisk(String noteTitle, String noteContent) async {
@@ -39,22 +38,24 @@ class RustImpl {
     malloc.free(titlePtr);
     malloc.free(contentPtr);
   }
-  //added error handling 
-  Future<String> loadNoteFromDisk(String noteTitle) async {
-  final titlePtr = noteTitle.toNativeUtf8();
-  try {
-    final resultPtr = _loadNoteFromDisk(titlePtr);
-    if (resultPtr == nullptr) {
-      throw Exception('Rust returned null pointer for note content');
-    }
 
-    final content = resultPtr.toDartString();
-    malloc.free(resultPtr); // only if Rust used malloc
-    return content;
-  } finally {
-    malloc.free(titlePtr);
+  //added error handling
+  Future<String> loadNoteFromDisk(String noteTitle) async {
+    final titlePtr = noteTitle.toNativeUtf8();
+    try {
+      final resultPtr = _loadNoteFromDisk(titlePtr);
+      if (resultPtr == nullptr) {
+        throw Exception('Rust returned null pointer for note content');
+      }
+
+      final content = resultPtr.toDartString();
+      // api.freeString(resultPtr); add if error in malloc();
+      malloc.free(resultPtr);
+      return content;
+    } finally {
+      malloc.free(titlePtr);
+    }
   }
-}
 
   //error in this func
   // Future<String> loadNoteFromDisk(String noteTitle) async {
