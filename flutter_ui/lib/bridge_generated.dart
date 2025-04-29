@@ -1,4 +1,4 @@
-//auto generated file, do not modify..
+// Auto generated file, do not modify..
 
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
@@ -10,76 +10,94 @@ class RustImpl {
 
   late final void Function(Pointer<Utf8>, Pointer<Utf8>) _saveNoteToDisk = dylib
       .lookupFunction<
-        Void Function(Pointer<Utf8>, Pointer<Utf8>),
-        void Function(Pointer<Utf8>, Pointer<Utf8>)
-      >('save_note_to_disk');
+          Void Function(Pointer<Utf8>, Pointer<Utf8>),
+          void Function(Pointer<Utf8>, Pointer<Utf8>)>('save_note_to_disk');
 
   late final Pointer<Utf8> Function(Pointer<Utf8>) _loadNoteFromDisk = dylib
-      .lookupFunction<
-        Pointer<Utf8> Function(Pointer<Utf8>),
-        Pointer<Utf8> Function(Pointer<Utf8>)
-      >('load_note_from_disk');
+      .lookupFunction<Pointer<Utf8> Function(Pointer<Utf8>),
+          Pointer<Utf8> Function(Pointer<Utf8>)>('load_note_from_disk');
 
-  late final Pointer<Utf8> Function() _listNoteTitles = dylib
-      .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
-        'list_note_titles',
-      );
+  late final Pointer<Utf8> Function() _listNoteTitles = dylib.lookupFunction<
+      Pointer<Utf8> Function(), Pointer<Utf8> Function()>('list_note_titles');
 
-  late final Pointer<Utf8> Function(Pointer<Utf8>) encryptText = dylib
-      .lookupFunction<
-        Pointer<Utf8> Function(Pointer<Utf8>),
-        Pointer<Utf8> Function(Pointer<Utf8>)
-      >('encrypt_text');
+  late final void Function(Pointer<Utf8>) _freeString = dylib.lookupFunction<
+      Void Function(Pointer<Utf8>), void Function(Pointer<Utf8>)>('free_string');
+
+  late final Pointer<Utf8> Function(Pointer<Utf8>) _encryptText = dylib
+      .lookupFunction<Pointer<Utf8> Function(Pointer<Utf8>),
+          Pointer<Utf8> Function(Pointer<Utf8>)>('encrypt_text');
 
   Future<void> saveNoteToDisk(String noteTitle, String noteContent) async {
     final titlePtr = noteTitle.toNativeUtf8();
     final contentPtr = noteContent.toNativeUtf8();
-    _saveNoteToDisk(titlePtr, contentPtr);
-    malloc.free(titlePtr);
-    malloc.free(contentPtr);
-  }
-
-  //added error handling
-  Future<String> loadNoteFromDisk(String noteTitle) async {
-    final titlePtr = noteTitle.toNativeUtf8();
+    
     try {
-      final resultPtr = _loadNoteFromDisk(titlePtr);
-      if (resultPtr == nullptr) {
-        throw Exception('Rust returned null pointer for note content');
-      }
-
-      final content = resultPtr.toDartString();
-      // api.freeString(resultPtr); add if error in malloc();
-      malloc.free(resultPtr);
-      return content;
+      _saveNoteToDisk(titlePtr, contentPtr);
     } finally {
-      malloc.free(titlePtr);
+      calloc.free(titlePtr);
+      calloc.free(contentPtr);
     }
   }
 
-  //error in this func
-  // Future<String> loadNoteFromDisk(String noteTitle) async {
-  //   final titlePtr = noteTitle.toNativeUtf8();
-  //   final resultPtr = _loadNoteFromDisk(titlePtr);
-  //   final content = resultPtr.toDartString();
-  //   malloc.free(titlePtr);
-  //   malloc.free(resultPtr);
-  //   return content;
-  // }
+  Future<String> loadNoteFromDisk(String noteTitle) async {
+    final titlePtr = noteTitle.toNativeUtf8();
+    
+    try {
+      final resultPtr = _loadNoteFromDisk(titlePtr);
+      if (resultPtr.address == 0) {
+        return ''; 
+      }
+      
+      final content = resultPtr.toDartString();
+      _freeString(resultPtr); // Use Rust's free function instead of malloc.free
+      return content;
+    } catch (e) {
+      print('Error loading note: $e');
+      return '';
+    } finally {
+      calloc.free(titlePtr);
+    }
+  }
 
   Future<List<String>> listNoteTitles() async {
-    final resultPtr = _listNoteTitles();
-    final rawString = resultPtr.toDartString();
-    malloc.free(resultPtr);
-    return rawString.split(';').where((e) => e.isNotEmpty).toList();
+    try {
+      final resultPtr = _listNoteTitles();
+      if (resultPtr.address == 0) {
+        return [];
+      }
+      
+      final rawString = resultPtr.toDartString();
+      _freeString(resultPtr);
+      return rawString.split(';').where((e) => e.isNotEmpty).toList();
+    } catch (e) {
+      print('Error listing note titles: $e');
+      return [];
+    }
   }
 
   String encryptMessage(String message) {
     final textPointer = message.toNativeUtf8();
-    final encryptedPointer = encryptText(textPointer);
-    final encryptedMessage = encryptedPointer.toDartString();
-    malloc.free(textPointer);
-    malloc.free(encryptedPointer);
-    return encryptedMessage;
+    
+    try {
+      final encryptedPointer = _encryptText(textPointer);
+      if (encryptedPointer.address == 0) {
+        return '';
+      }
+      
+      final encryptedMessage = encryptedPointer.toDartString();
+      _freeString(encryptedPointer);
+      return encryptedMessage;
+    } catch (e) {
+      print('Error encrypting message: $e');
+      return '';
+    } finally {
+      calloc.free(textPointer);
+    }
+  }
+
+  void freeString(Pointer<Utf8> ptr) {
+    if (ptr.address != 0) {
+      _freeString(ptr);
+    }
   }
 }
