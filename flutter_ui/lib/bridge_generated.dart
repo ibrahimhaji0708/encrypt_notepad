@@ -39,15 +39,32 @@ class RustImpl {
     malloc.free(titlePtr);
     malloc.free(contentPtr);
   }
-
+  //added error handling 
   Future<String> loadNoteFromDisk(String noteTitle) async {
-    final titlePtr = noteTitle.toNativeUtf8();
+  final titlePtr = noteTitle.toNativeUtf8();
+  try {
     final resultPtr = _loadNoteFromDisk(titlePtr);
+    if (resultPtr == nullptr) {
+      throw Exception('Rust returned null pointer for note content');
+    }
+
     final content = resultPtr.toDartString();
-    malloc.free(titlePtr);
-    malloc.free(resultPtr);
+    malloc.free(resultPtr); // only if Rust used malloc
     return content;
+  } finally {
+    malloc.free(titlePtr);
   }
+}
+
+  //error in this func
+  // Future<String> loadNoteFromDisk(String noteTitle) async {
+  //   final titlePtr = noteTitle.toNativeUtf8();
+  //   final resultPtr = _loadNoteFromDisk(titlePtr);
+  //   final content = resultPtr.toDartString();
+  //   malloc.free(titlePtr);
+  //   malloc.free(resultPtr);
+  //   return content;
+  // }
 
   Future<List<String>> listNoteTitles() async {
     final resultPtr = _listNoteTitles();
