@@ -8,29 +8,44 @@ class RustImpl {
 
   RustImpl(this.dylib);
 
-  late final void Function(Pointer<Utf8>, Pointer<Utf8>) _saveNoteToDisk = dylib
-      .lookupFunction<
-          Void Function(Pointer<Utf8>, Pointer<Utf8>),
-          void Function(Pointer<Utf8>, Pointer<Utf8>)>('save_note_to_disk');
-
-  late final Pointer<Utf8> Function(Pointer<Utf8>) _loadNoteFromDisk = dylib
-      .lookupFunction<Pointer<Utf8> Function(Pointer<Utf8>),
-          Pointer<Utf8> Function(Pointer<Utf8>)>('load_note_from_disk');
-
-  late final Pointer<Utf8> Function() _listNoteTitles = dylib.lookupFunction<
-      Pointer<Utf8> Function(), Pointer<Utf8> Function()>('list_note_titles');
-
   late final void Function(Pointer<Utf8>) _freeString = dylib.lookupFunction<
-      Void Function(Pointer<Utf8>), void Function(Pointer<Utf8>)>('free_string');
+    Void Function(Pointer<Utf8>),
+    void Function(Pointer<Utf8>)
+  >('free_string');
 
   late final Pointer<Utf8> Function(Pointer<Utf8>) _encryptText = dylib
-      .lookupFunction<Pointer<Utf8> Function(Pointer<Utf8>),
-          Pointer<Utf8> Function(Pointer<Utf8>)>('encrypt_text');
+      .lookupFunction<
+        Pointer<Utf8> Function(Pointer<Utf8>),
+        Pointer<Utf8> Function(Pointer<Utf8>)
+      >('encrypt_text');
+
+  late final void Function(Pointer<Utf8>) _deleteNoteFromDisk = dylib
+      .lookupFunction<
+        Void Function(Pointer<Utf8>),
+        void Function(Pointer<Utf8>)
+      >('delete_note_from_disk');
+
+  late final void Function(Pointer<Utf8>, Pointer<Utf8>) _saveNoteToDisk = dylib
+      .lookupFunction<
+        Void Function(Pointer<Utf8>, Pointer<Utf8>),
+        void Function(Pointer<Utf8>, Pointer<Utf8>)
+      >('save_note_to_disk');
+
+  late final Pointer<Utf8> Function(Pointer<Utf8>) _loadNoteFromDisk = dylib
+      .lookupFunction<
+        Pointer<Utf8> Function(Pointer<Utf8>),
+        Pointer<Utf8> Function(Pointer<Utf8>)
+      >('load_note_from_disk');
+
+  late final Pointer<Utf8> Function() _listNoteTitles = dylib
+      .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
+        'list_note_titles',
+      );
 
   Future<void> saveNoteToDisk(String noteTitle, String noteContent) async {
     final titlePtr = noteTitle.toNativeUtf8();
     final contentPtr = noteContent.toNativeUtf8();
-    
+
     try {
       _saveNoteToDisk(titlePtr, contentPtr);
     } finally {
@@ -41,13 +56,13 @@ class RustImpl {
 
   Future<String> loadNoteFromDisk(String noteTitle) async {
     final titlePtr = noteTitle.toNativeUtf8();
-    
+
     try {
       final resultPtr = _loadNoteFromDisk(titlePtr);
       if (resultPtr.address == 0) {
-        return ''; 
+        return '';
       }
-      
+
       final content = resultPtr.toDartString();
       _freeString(resultPtr); // Use Rust's free function instead of malloc.free
       return content;
@@ -65,7 +80,7 @@ class RustImpl {
       if (resultPtr.address == 0) {
         return [];
       }
-      
+
       final rawString = resultPtr.toDartString();
       _freeString(resultPtr);
       return rawString.split(';').where((e) => e.isNotEmpty).toList();
@@ -75,15 +90,25 @@ class RustImpl {
     }
   }
 
+  Future<void> deleteNoteFromDisk(String noteTitle) async {
+    final titlePtr = noteTitle.toNativeUtf8();
+    
+    try {
+      _deleteNoteFromDisk(titlePtr);
+    } finally {
+      calloc.free(titlePtr);
+    }
+  }
+
   String encryptMessage(String message) {
     final textPointer = message.toNativeUtf8();
-    
+
     try {
       final encryptedPointer = _encryptText(textPointer);
       if (encryptedPointer.address == 0) {
         return '';
       }
-      
+
       final encryptedMessage = encryptedPointer.toDartString();
       _freeString(encryptedPointer);
       return encryptedMessage;

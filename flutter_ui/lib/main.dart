@@ -5,7 +5,7 @@ import 'ui/screens/editor_screen.dart';
 import 'ui/screens/home_screen.dart';
 
 void main() {
-   WidgetsFlutterBinding.ensureInitialized();
+  WidgetsFlutterBinding.ensureInitialized();
   initRustApi();
   runApp(const EncryptedNotepadApp());
 }
@@ -19,31 +19,71 @@ class EncryptedNotepadApp extends StatelessWidget {
       title: 'Encrypted Notepad',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.deepPurple,
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-        appBarTheme: AppBarTheme(
-          backgroundColor: Colors.deepPurple,
+        brightness: Brightness.dark,
+        primaryColor: const Color(0xFF2D1B69),
+        scaffoldBackgroundColor: const Color(0xFF171738),
+        colorScheme: ColorScheme.dark(
+          primary: const Color(0xFF6247AA),
+          secondary: const Color(0xFF81559B),
+          surface: const Color(0xFF1F1B2C),
+          error: Colors.redAccent,
+        ),
+        cardTheme: CardTheme(
+          color: const Color(0xFF29214F),
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF2D1B69), 
+          foregroundColor: Colors.white,
+          elevation: 4,
+          centerTitle: false,
           titleTextStyle: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
             color: Colors.white,
           ),
-          elevation: 4,
         ),
-        scaffoldBackgroundColor: Colors.grey[200],
-        buttonTheme: ButtonThemeData(
-          buttonColor: Colors.deepPurple,
-          textTheme: ButtonTextTheme.primary,
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF6247AA), 
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
         ),
-        textTheme: TextTheme(
-          bodyMedium: TextStyle(color: Colors.black87),
-          titleLarge: TextStyle(color: Colors.deepPurpleAccent),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(0xFF9D84C7), 
+          ),
         ),
+        inputDecorationTheme: InputDecorationTheme(
+          fillColor: const Color(0xFF242042), 
+          filled: true,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFF6247AA), width: 2),
+          ),
+          labelStyle: const TextStyle(color: Color(0xFFABB2BF)),
+          hintStyle: const TextStyle(color: Color(0xFF6B7280)),
+        ),
+        textTheme: const TextTheme(
+          bodyMedium: TextStyle(color: Color(0xFFE0E0E0)),
+          titleLarge: TextStyle(color: Color(0xFF9D84C7)),
+        ),
+        useMaterial3: true,
       ),
       home: const HomeScreen(),
       routes: {
-        '/editor': (context) => const EditorScreen(initialContent: '', initialTitle: '',),
+        '/editor': (context) => const EditorScreen(initialContent: '', initialTitle: ''),
       },
     );
   }

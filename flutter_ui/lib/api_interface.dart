@@ -2,7 +2,6 @@ import 'dart:ffi';
 import 'dart:io';
 import 'bridge_generated.dart';
 
-// Initialize Rust API
 late final RustImpl api;
 
 void initRustApi() {
@@ -49,3 +48,4 @@ void initRustApi() {
     rethrow;
   }
 }
+
