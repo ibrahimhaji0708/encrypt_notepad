@@ -75,7 +75,24 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
-  // Get a safe directory for file storage
+  //file managenmt
+  Future<void> requestStoragePermission() async {
+    if (Platform.isAndroid) {
+      final status = await Permission.manageExternalStorage.status;
+
+      if (!status.isGranted) {
+        final result = await Permission.manageExternalStorage.request();
+        if (!result.isGranted) {
+          _showError(
+            'Permission denied. Please enable storage access in Settings.',
+          );
+          await openAppSettings();
+          return;
+        }
+      }
+    }
+  }
+
   Future<Directory> _getSafeDirectory() async {
     if (Platform.isAndroid) {
       return await getApplicationDocumentsDirectory();
@@ -97,36 +114,22 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
-  // Safe save method for Android compatibility
   Future<void> _handleSaveWithSafety(BuildContext context) async {
-    if (_isSaving) return; // Prevent multiple taps
+    if (_isSaving) return;
 
     setState(() {
       _isSaving = true;
     });
 
     try {
-      // Check permissions for Android
       if (Platform.isAndroid) {
-        // Request storage permission
-        var status = await Permission.storage.status;
-        if (status.isDenied) {
-          status = await Permission.storage.request();
-          if (status.isDenied) {
-            _showError('Storage permission is required');
-            return;
-          }
-        }
+        await requestStoragePermission();
       }
-
-      // Call the actual save method
       await _saveNote();
-      
     } catch (e) {
       print('Permission error: $e');
       _showError('Error: ${e.toString()}');
     } finally {
-      // Always reset state
       if (mounted) {
         setState(() {
           _isSaving = false;
@@ -153,7 +156,6 @@ class _EditorScreenState extends State<EditorScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // First try the standard save
       try {
         await api.saveNoteToDisk(title, content);
         if (context.mounted) {
@@ -162,21 +164,20 @@ class _EditorScreenState extends State<EditorScreen> {
         }
         return;
       } catch (e) {
-        // If standard save fails, try the fallback method for Android
         if (Platform.isAndroid) {
           final directory = await _getSafeDirectory();
-          final fileName = title.replaceAll(RegExp(r'[^\w\s]+'), '') + '.txt';
+          final fileName = '${title.replaceAll(RegExp(r'[^\w\s]+'), '')}.txt';
           final filePath = '${directory.path}/$fileName';
-          
+
           final file = File(filePath);
           await file.writeAsString(content);
-          
+
           if (mounted) {
             _showSuccessSnackBar('Note saved to app storage');
             Navigator.pop(context, true);
           }
         } else {
-          throw e; // Re-throw if not Android
+          rethrow;
         }
       }
     } catch (e) {
@@ -215,25 +216,26 @@ class _EditorScreenState extends State<EditorScreen> {
 
     final result = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Discard changes?'),
-        content: const Text(
-          'You have unsaved changes. Are you sure you want to discard them?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('CANCEL'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Discard changes?'),
+            content: const Text(
+              'You have unsaved changes. Are you sure you want to discard them?',
             ),
-            child: const Text('DISCARD'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('CANCEL'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                ),
+                child: const Text('DISCARD'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
 
     return result ?? false;
@@ -272,98 +274,114 @@ class _EditorScreenState extends State<EditorScreen> {
             ),
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
-              child: _hasChanges
-                  ? IconButton(
-                      key: const ValueKey('save'),
-                      icon: _isSaving 
-                          ? const SizedBox(
-                              width: 24, 
-                              height: 24, 
-                              child: CircularProgressIndicator(strokeWidth: 2)
-                            )
-                          : const Icon(Icons.save),
-                      onPressed: (_isLoading || _isSaving) ? null : () => _handleSaveWithSafety(context),
-                      tooltip: 'Save',
-                    )
-                  : const SizedBox(width: 48),
+              child:
+                  _hasChanges
+                      ? IconButton(
+                        key: const ValueKey('save'),
+                        icon:
+                            _isSaving
+                                ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                                : const Icon(Icons.save),
+                        onPressed:
+                            (_isLoading || _isSaving)
+                                ? null
+                                : () => _handleSaveWithSafety(context),
+                        tooltip: 'Save',
+                      )
+                      : const SizedBox(width: 48),
             ),
           ],
         ),
-        body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : GestureDetector(
-                onTap: () {
-                  FocusScope.of(context).unfocus();
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          color: Theme.of(context).colorScheme.surface,
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        child: TextField(
-                          controller: _titleController,
-                          focusNode: _titleFocus,
-                          decoration: const InputDecoration(
-                            hintText: 'Note Title',
-                            border: InputBorder.none,
-                            counter: SizedBox.shrink(),
-                          ),
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLength: 50,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child: Container(
+        body:
+            _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : GestureDetector(
+                  onTap: () {
+                    FocusScope.of(context).unfocus();
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      children: [
+                        Container(
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
                             color: Theme.of(context).colorScheme.surface,
                           ),
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
                           child: TextField(
-                            controller: _contentController,
-                            focusNode: _contentFocus,
-                            maxLines: null,
-                            expands: true,
+                            controller: _titleController,
+                            focusNode: _titleFocus,
                             decoration: const InputDecoration(
-                              hintText: 'Write your note here...',
+                              hintText: 'Note Title',
                               border: InputBorder.none,
+                              counter: SizedBox.shrink(),
                             ),
-                            style: const TextStyle(fontSize: 16, height: 1.5),
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLength: 50,
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              color: Theme.of(context).colorScheme.surface,
+                            ),
+                            padding: const EdgeInsets.all(16),
+                            child: TextField(
+                              controller: _contentController,
+                              focusNode: _contentFocus,
+                              maxLines: null,
+                              expands: true,
+                              decoration: const InputDecoration(
+                                hintText: 'Write your note here...',
+                                border: InputBorder.none,
+                              ),
+                              style: const TextStyle(fontSize: 16, height: 1.5),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
         floatingActionButton: AnimatedOpacity(
           opacity: _hasChanges ? 1.0 : 0.0,
           duration: const Duration(milliseconds: 200),
-          child: _hasChanges
-              ? FloatingActionButton(
-                  onPressed: (_isLoading || _isSaving) ? null : () => _handleSaveWithSafety(context),
-                  tooltip: 'Save Note',
-                  child: _isSaving 
-                    ? const SizedBox(
-                        width: 24, 
-                        height: 24, 
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)
-                      )
-                    : const Icon(Icons.save),
-                )
-              : const SizedBox.shrink(),
+          child:
+              _hasChanges
+                  ? FloatingActionButton(
+                    onPressed:
+                        (_isLoading || _isSaving)
+                            ? null
+                            : () => _handleSaveWithSafety(context),
+                    tooltip: 'Save Note',
+                    child:
+                        _isSaving
+                            ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                            : const Icon(Icons.save),
+                  )
+                  : const SizedBox.shrink(),
         ),
       ),
     );

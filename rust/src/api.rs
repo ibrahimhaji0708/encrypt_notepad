@@ -1,7 +1,7 @@
 use std::ffi::{c_char, CStr, CString};
-use std::fs;
+use std::fs::{self, File};
 use std::path::PathBuf;
-use std::io::{self};
+use std::io::{self, Write};
 use std::sync::Once;
 
 static ENCRYPTION_KEY: &[u8] = b"NOTEPAD_SECRET_KEY_2025";
@@ -55,45 +55,97 @@ fn c_char_to_string(c_str: *const c_char) -> Result<String, &'static str> {
         }
     }
 }
-
+//uncmt if error
+// #[unsafe(no_mangle)]
+// pub extern "C" fn save_note_to_disk(title: *const c_char, content: *const c_char) {
+//     let title = match c_char_to_string(title) {
+//         Ok(s) => s,
+//         Err(e) => {
+//             eprintln!("Error reading title: {}", e);
+//             return;
+//         }
+//     };
+    
+//     let content = match c_char_to_string(content) {
+//         Ok(s) => s,
+//         Err(e) => {
+//             eprintln!("Error reading content: {}", e);
+//             return;
+//         }
+//     };
+    
+//     let dir = match ensure_directory_exists() {
+//         Ok(dir) => dir,
+//         Err(e) => {
+//             eprintln!("Failed to create notes directory: {}", e);
+//             return;
+//         }
+//     };
+    
+//     let mut path = dir;
+//     path.push(format!("{}.txt", title));
+    
+//     //enc beofre save
+//     let encrypted_data = xor_encrypt_decrypt(content.as_bytes());
+    
+//     if let Err(e) = fs::write(&path, encrypted_data) {
+//         eprintln!("Failed to save note: {}", e);
+//     } else {
+//         println!("Note saved successfully: {}", title);
+//     }
+// }
+//another savenote func
 #[unsafe(no_mangle)]
-pub extern "C" fn save_note_to_disk(title: *const c_char, content: *const c_char) {
-    let title = match c_char_to_string(title) {
-        Ok(s) => s,
+pub extern "C" fn save_note_to_disk(title: *const c_char, content: *const c_char) -> bool {
+    if title.is_null() || content.is_null() {
+        eprintln!("[Rust] Null pointer received");
+        return false;
+    }
+
+    let title = match unsafe { CStr::from_ptr(title).to_str() } {
+        Ok(s) => s.to_string(),
         Err(e) => {
-            eprintln!("Error reading title: {}", e);
-            return;
+            eprintln!("[Rust] Invalid title UTF-8: {}", e);
+            return false;
         }
     };
-    
-    let content = match c_char_to_string(content) {
-        Ok(s) => s,
+
+    let content = match unsafe { CStr::from_ptr(content).to_str() } {
+        Ok(s) => s.to_string(),
         Err(e) => {
-            eprintln!("Error reading content: {}", e);
-            return;
+            eprintln!("[Rust] Invalid content UTF-8: {}", e);
+            return false;
         }
     };
-    
-    let dir = match ensure_directory_exists() {
-        Ok(dir) => dir,
-        Err(e) => {
-            eprintln!("Failed to create notes directory: {}", e);
-            return;
+
+    let sanitized = title.replace(|c: char| !c.is_alphanumeric(), "_");
+    let path = PathBuf::from(format!("/storage/emulated/0/Notes/{}.txt", sanitized));
+
+    if let Some(parent) = path.parent() {
+        if let Err(e) = fs::create_dir_all(parent) {
+            eprintln!("[Rust] Failed to create folder: {}", e);
+            return false;
         }
-    };
-    
-    let mut path = dir;
-    path.push(format!("{}.txt", title));
-    
-    //enc beofre save
-    let encrypted_data = xor_encrypt_decrypt(content.as_bytes());
-    
-    if let Err(e) = fs::write(&path, encrypted_data) {
-        eprintln!("Failed to save note: {}", e);
-    } else {
-        println!("Note saved successfully: {}", title);
+    }
+
+    let encrypted = xor_encrypt_decrypt(content.as_bytes());
+
+    match File::create(&path).and_then(|mut f| f.write_all(&encrypted)) {
+        Ok(_) => {
+            println!("[Rust] Saved note to {:?}", path);
+            true
+        }
+        Err(e) => {
+            eprintln!("[Rust] File write failed: {}", e);
+            false
+        }
     }
 }
+// fn get_android_notes_dir() -> Result<PathBuf, io::Error> {
+//     let path = PathBuf::from("/storage/emulated/0/Notes");
+//     fs::create_dir_all(&path)?;
+//     Ok(path)
+// }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn load_note_from_disk(title: *const c_char) -> *mut c_char {
