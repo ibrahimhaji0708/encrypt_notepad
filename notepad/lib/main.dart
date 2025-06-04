@@ -1,16 +1,30 @@
 import 'dart:ffi';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+// import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:flutter_ui/bridge_generated.dart/frb_generated.dart';
 import 'package:flutter_ui/ui/screens/editor_screen.dart';
 import 'package:flutter_ui/ui/screens/home_screen.dart';
-import 'package:flutter_ui/bridge_generated.dart/frb_generated.dart' as bridge;
 
-final dylibPath =
-    'native/target/release/librust_lib_notepad.so';
-final dylib = DynamicLibrary.open(dylibPath);
+// final dylibPath = 'native/target/release/librust_lib_notepad.so';
+// final dylib = DynamicLibrary.open(dylibPath);
+// final dylib = DynamicLibrary.open('librust_lib_notepad.so');
+
 
 Future<void> main() async {
-  await bridge.RustLib.init(externalLibrary: ExternalLibrary.open(dylibPath));
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await RustLib.init(
+      externalLibrary: ExternalLibrary.open('librust_lib_notepad.so'),
+    );
+    print("Rust lib initialized successfully");
+  } catch (e) {
+    print("Failed to initialize Rust lib: $e");
+    return;
+  }
+
   runApp(const EncryptedNotepadApp());
 }
 
@@ -32,15 +46,15 @@ class EncryptedNotepadApp extends StatelessWidget {
           surface: const Color(0xFF1F1B2C),
           error: Colors.redAccent,
         ),
-        cardTheme: CardTheme(
-          color: const Color(0xFF29214F),
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
+        // cardTheme: CardTheme(
+        //   color: const Color(0xFF29214F),
+        //   elevation: 4,
+        //   shape: RoundedRectangleBorder(
+        //     borderRadius: BorderRadius.circular(12),
+        //   ),
+        // ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF2D1B69), 
+          backgroundColor: Color(0xFF2D1B69),
           foregroundColor: Colors.white,
           elevation: 4,
           centerTitle: false,
@@ -52,7 +66,7 @@ class EncryptedNotepadApp extends StatelessWidget {
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF6247AA), 
+            backgroundColor: const Color(0xFF6247AA),
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             shape: RoundedRectangleBorder(
@@ -61,12 +75,10 @@ class EncryptedNotepadApp extends StatelessWidget {
           ),
         ),
         textButtonTheme: TextButtonThemeData(
-          style: TextButton.styleFrom(
-            foregroundColor: const Color(0xFF9D84C7), 
-          ),
+          style: TextButton.styleFrom(foregroundColor: const Color(0xFF9D84C7)),
         ),
         inputDecorationTheme: InputDecorationTheme(
-          fillColor: const Color(0xFF242042), 
+          fillColor: const Color(0xFF242042),
           filled: true,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
@@ -87,7 +99,9 @@ class EncryptedNotepadApp extends StatelessWidget {
       ),
       home: const HomeScreen(),
       routes: {
-        '/editor': (context) => const EditorScreen(initialContent: '', initialTitle: ''),
+        '/editor':
+            (context) =>
+                const EditorScreen(initialContent: '', initialTitle: ''),
       },
     );
   }

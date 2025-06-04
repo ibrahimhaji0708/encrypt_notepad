@@ -1,8 +1,6 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_ui/bridge_generated.dart/frb_generated.dart' as bridge;
-import 'package:flutter_ui/src/rust/frb_generated.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_ui/bridge_generated.dart/frb_generated.dart';
@@ -13,8 +11,8 @@ class EditorScreen extends StatefulWidget {
 
   const EditorScreen({
     super.key,
-    required this.initialTitle,
-    required this.initialContent,
+    this.initialTitle = '',
+    this.initialContent = '', //
   });
 
   @override
@@ -50,7 +48,6 @@ class _EditorScreenState extends State<EditorScreen> {
   void _onTextChanged() {
     final titleChanged = _titleController.text != widget.initialTitle;
     final contentChanged = _contentController.text != widget.initialContent;
-
     if ((titleChanged || contentChanged) != _hasChanges) {
       setState(() {
         _hasChanges = titleChanged || contentChanged;
@@ -66,8 +63,8 @@ class _EditorScreenState extends State<EditorScreen> {
     } else {
       setState(() => _isLoading = true);
       try {
-        final encryptedContent = await bridge.RustLib.instance.api.encryptMessage(_contentController.text);
-        // print("Available methods: ${bridge.RustLib.instance.api.runtimeType}");
+        final encryptedContent = await bridge.RustLib.instance.api
+            .crateApiEncryptText(text: _contentController.text);
         setState(() {
           _contentController.text = encryptedContent;
           _isEncrypted = true;
@@ -78,19 +75,13 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
-  //file managenmt
   Future<void> requestStoragePermission() async {
     if (Platform.isAndroid) {
-      final status = await Permission.manageExternalStorage.status;
-
+      var status = await Permission.storage.status;
       if (!status.isGranted) {
-        final result = await Permission.manageExternalStorage.request();
-        if (!result.isGranted) {
-          _showError(
-            'Permission denied. Please enable storage access in Settings.',
-          );
-          await openAppSettings();
-          return;
+        status = await Permission.storage.request();
+        if (!status.isGranted) {
+          _showError('Storage permission is required to save notes.');
         }
       }
     }
@@ -104,7 +95,6 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
-  // Show error message
   void _showError(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -119,18 +109,16 @@ class _EditorScreenState extends State<EditorScreen> {
 
   Future<void> _handleSaveWithSafety(BuildContext context) async {
     if (_isSaving) return;
-
     setState(() {
       _isSaving = true;
     });
-
     try {
       if (Platform.isAndroid) {
         await requestStoragePermission();
       }
       await _saveNote();
     } catch (e) {
-      print('Permission error: $e');
+      debugPrint('Save error: $e');
       _showError('Error: ${e.toString()}');
     } finally {
       if (mounted) {
@@ -150,7 +138,6 @@ class _EditorScreenState extends State<EditorScreen> {
       _titleFocus.requestFocus();
       return;
     }
-
     if (content.isEmpty) {
       _showErrorSnackBar('Content cannot be empty');
       _contentFocus.requestFocus();
@@ -158,34 +145,44 @@ class _EditorScreenState extends State<EditorScreen> {
     }
 
     setState(() => _isLoading = true);
+
     try {
-      try {
-        await await RustLibApi.RustLib.instance.api.saveNoteToDisk(title, content);
-        // print("Available methods: ${bridge.RustLib.instance.api.runtimeType}");
-        if (context.mounted) {
-          _showSuccessSnackBar('Note saved successfully');
-          Navigator.pop(context, true);
-        }
-        return;
-      } catch (e) {
-        if (Platform.isAndroid) {
+      bool saved = false;
+
+      if (Platform.isAndroid) {
+        try {
           final directory = await _getSafeDirectory();
           final fileName = '${title.replaceAll(RegExp(r'[^\w\s]+'), '')}.txt';
           final filePath = '${directory.path}/$fileName';
-
           final file = File(filePath);
           await file.writeAsString(content);
-
-          if (mounted) {
-            _showSuccessSnackBar('Note saved to app storage');
-            Navigator.pop(context, true);
-          }
-        } else {
-          rethrow;
+          saved = true;
+          debugPrint("Flutter save successful: $filePath");
+        } catch (e) {
+          debugPrint("Flutter save failed: $e");
         }
       }
-    } catch (e) {
-      _showErrorSnackBar('Failed to save note: $e');
+
+      if (!saved) {
+        try {
+          saved = await RustLib.instance.api.crateApiSaveNoteToDisk(
+            title: title,
+            content: content,
+          );
+          if (saved) {
+            debugPrint("Rust save successful");
+          }
+        } catch (e) {
+          debugPrint("Rust save failed: $e");
+        }
+      }
+
+      if (saved && context.mounted) {
+        _showSuccessSnackBar('Note saved successfully');
+        Navigator.pop(context, true);
+      } else {
+        _showErrorSnackBar('Failed to save note');
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -217,31 +214,29 @@ class _EditorScreenState extends State<EditorScreen> {
 
   Future<bool> _onWillPop() async {
     if (!_hasChanges) return true;
-
     final result = await showDialog<bool>(
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Discard changes?'),
+            title: const Text('discard changes??'),
             content: const Text(
-              'You have unsaved changes. Are you sure you want to discard them?',
+              'u have unsaved changes, r u sure u want to discard them??',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('CANCEL'),
+                child: const Text('Cancel'),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.of(context).pop(true),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.redAccent,
                 ),
-                child: const Text('DISCARD'),
+                child: const Text('Discard'),
               ),
             ],
           ),
     );
-
     return result ?? false;
   }
 

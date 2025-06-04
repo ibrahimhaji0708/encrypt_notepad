@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_ui/bridge_generated.dart/frb_generated.dart' as bridge;
-import 'package:flutter_ui/src/rust/frb_generated.dart';
+import 'package:flutter_ui/bridge_generated.dart/frb_generated.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 import 'editor_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -16,9 +18,6 @@ class _HomeScreenState extends State<HomeScreen>
   late AnimationController _controller;
   late Animation<double> _animation;
   bool _isLoading = false;
-  // List<String> _noteTitles = [];
-  // String? _lastDeletedNoteTitle;
-  // String? _lastDeletedNoteContent;
 
   @override
   void initState() {
@@ -27,7 +26,10 @@ class _HomeScreenState extends State<HomeScreen>
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOut,
+    );
     _controller.forward();
     _fetchNotes();
   }
@@ -39,27 +41,58 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _fetchNotes() async {
-  setState(() => _isLoading = true);
-  try {
-    final titlesString = await RustLib.instance.api.listNoteTitles();
+    setState(() => _isLoading = true);
+    try {
+      List<String> allTitles = [];
 
-    if (titlesString.isNotEmpty) {
-      _noteTitles = Future.value(titlesString.split(';'));
-    } else {
+      try {
+        final titlesString =
+            await RustLib.instance.api.crateApiListNoteTitles();
+        if (titlesString.isNotEmpty) {
+          allTitles.addAll(titlesString.split(';'));
+        }
+      } catch (e) {
+        debugPrint("Error fetching Rust notes: $e");
+      }
+
+      if (Platform.isAndroid && allTitles.isEmpty) {
+        try {
+          final directory = await getApplicationDocumentsDirectory();
+          final files =
+              directory
+                  .listSync()
+                  .where((file) => file.path.endsWith('.txt'))
+                  .map(
+                    (file) => path.basenameWithoutExtension(file.path),
+                  )
+                  .toList();
+          allTitles.addAll(files);
+        } catch (e) {
+          debugPrint("Error fetching Flutter notes: $e");
+        }
+      }
+
+      _noteTitles = Future.value(allTitles);
+    } catch (e) {
+      debugPrint("Error fetching notes: $e");
       _noteTitles = Future.value([]);
     }
-  } catch (e) {
-    debugPrint("Error fetching note titles: $e");
-    _noteTitles = Future.value([]);
+    setState(() => _isLoading = false);
   }
-  setState(() => _isLoading = false);
-}
-
 
   Future<void> _refreshNotes() async {
-    setState(() {
+    _fetchNotes();
+  }
+
+  void _navigateToEditor() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const EditorScreen(initialTitle: '', initialContent: '')),
+    );
+
+    if (result == true) {
       _fetchNotes();
-    });
+    }
   }
 
   @override
@@ -94,15 +127,7 @@ class _HomeScreenState extends State<HomeScreen>
                   onPressed:
                       _isLoading
                           ? null
-                          : () async {
-                            final result = await Navigator.pushNamed(
-                              context,
-                              '/editor',
-                            );
-                            if (result == true) {
-                              _refreshNotes();
-                            }
-                          },
+                          : _navigateToEditor,
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size.fromHeight(50),
                     shape: RoundedRectangleBorder(
@@ -111,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                   icon: const Icon(Icons.add),
                   label: const Text(
-                    'CREATE NEW NOTE',
+                    'Create New Note..',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -145,7 +170,7 @@ class _HomeScreenState extends State<HomeScreen>
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
-                                    'Error loading notes',
+                                    'error loading notes!!',
                                     style:
                                         Theme.of(context).textTheme.titleLarge,
                                   ),
@@ -169,13 +194,13 @@ class _HomeScreenState extends State<HomeScreen>
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
-                                    'No notes yet',
+                                    'no notes yet',
                                     style:
                                         Theme.of(context).textTheme.titleLarge,
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    'Create your first encrypted note!',
+                                    'create your first encrypted note!',
                                     style: TextStyle(
                                       color: Theme.of(
                                         context,
@@ -212,7 +237,7 @@ class _HomeScreenState extends State<HomeScreen>
                                         ),
                                         SizedBox(height: 4),
                                         Text(
-                                          "Delete",
+                                          "del",
                                           style: TextStyle(
                                             color: Colors.white,
                                             fontWeight: FontWeight.bold,
@@ -229,9 +254,9 @@ class _HomeScreenState extends State<HomeScreen>
                                       context: context,
                                       builder: (BuildContext context) {
                                         return AlertDialog(
-                                          title: Text('Delete "$noteTitle"?'),
+                                          title: Text('del "$noteTitle"?'),
                                           content: const Text(
-                                            'This action cannot be undone and the note will be permanently deleted.',
+                                            'ths action cant be undone, it will be deleted permanantly..',
                                           ),
                                           actions: [
                                             TextButton(
@@ -239,7 +264,7 @@ class _HomeScreenState extends State<HomeScreen>
                                                   () => Navigator.of(
                                                     context,
                                                   ).pop(false),
-                                              child: const Text('CANCEL'),
+                                              child: const Text('cancel'),
                                             ),
                                             ElevatedButton(
                                               onPressed:
@@ -250,7 +275,7 @@ class _HomeScreenState extends State<HomeScreen>
                                                 backgroundColor:
                                                     Colors.redAccent,
                                               ),
-                                              child: const Text('DELETE'),
+                                              child: const Text('del'),
                                             ),
                                           ],
                                         );
@@ -260,9 +285,10 @@ class _HomeScreenState extends State<HomeScreen>
                                   onDismissed: (direction) async {
                                     setState(() => _isLoading = true);
                                     try {
-                                      await bridge.RustLib.instance.api
-                                          .deleteNoteFromDisk(noteTitle);
-                                      // print("Available methods: ${bridge.RustLib.instance.api.runtimeType}");
+                                      await RustLib.instance.api
+                                          .crateApiDeleteNoteFromDisk(
+                                            title: noteTitle,
+                                          );
                                       if (context.mounted) {
                                         ScaffoldMessenger.of(
                                           context,
@@ -271,7 +297,7 @@ class _HomeScreenState extends State<HomeScreen>
                                             content: Text('$noteTitle deleted'),
                                             behavior: SnackBarBehavior.floating,
                                             action: SnackBarAction(
-                                              label: 'UNDO',
+                                              label: 'undo',
                                               onPressed: () {
                                                 _refreshNotes();
                                               },
@@ -286,7 +312,7 @@ class _HomeScreenState extends State<HomeScreen>
                                         ).showSnackBar(
                                           SnackBar(
                                             content: Text(
-                                              'Error deleting note: $e',
+                                              'err deleting note: $e',
                                             ),
                                             backgroundColor: Colors.redAccent,
                                             behavior: SnackBarBehavior.floating,
@@ -306,12 +332,12 @@ class _HomeScreenState extends State<HomeScreen>
                                       onTap: () async {
                                         setState(() => _isLoading = true);
                                         try {
-                                          final content = await bridge
-                                              .RustLib
+                                          final content = await RustLib
                                               .instance
                                               .api
-                                              .loadNoteFromDisk(noteTitle);
-                                          // print("Available methods: ${bridge.RustLib.instance.api.runtimeType}");
+                                              .crateApiLoadNoteFromDisk(
+                                                title: noteTitle,
+                                              );
                                           if (context.mounted) {
                                             Navigator.push(
                                               context,

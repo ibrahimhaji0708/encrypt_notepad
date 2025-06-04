@@ -45,12 +45,36 @@ fn xor_encrypt_decrypt(data: &[u8]) -> Vec<u8> {
 // Another savenote func
 #[frb]
 pub fn save_note_to_disk(title: String, content: String) -> bool {
-    let sanitized = title.replace(|c: char| !c.is_alphanumeric(), "_");
-    let path = PathBuf::from(format!("/storage/emulated/0/Notes/{}.txt", sanitized));
+    let sanitized = title.chars()
+        .map(|c| if c.is_alphanumeric() || c == ' ' { c } else { '_' })
+        .collect::<String>()
+        .trim()
+        .to_string();
+    
+    if sanitized.is_empty() {
+        eprintln!("[Rust] Invalid title after sanitization");
+        return false;
+    }
+    
+    let base_path = if cfg!(target_os = "android") {
+        std::env::var("ANDROID_DATA")
+            .unwrap_or_else(|_| "/data/data".to_string())
+    } else {
+        std::env::var("HOME")
+            .unwrap_or_else(|_| "/tmp".to_string())
+    };
+    
+    let notes_dir = if cfg!(target_os = "android") {
+        format!("{}/files/notes", base_path)
+    } else {
+        format!("{}/Documents/encrypted_notes", base_path)
+    };
+    
+    let path = PathBuf::from(format!("{}/{}.txt", notes_dir, sanitized));
     
     if let Some(parent) = path.parent() {
         if let Err(e) = fs::create_dir_all(parent) {
-            eprintln!("[Rust] Failed to create folder: {}", e);
+            eprintln!("[Rust] Failed to create folder {:?}: {}", parent, e);
             return false;
         }
     }
@@ -70,28 +94,46 @@ pub fn save_note_to_disk(title: String, content: String) -> bool {
 
 #[frb]
 pub fn load_note_from_disk(title: String) -> String {
-    let dir = match ensure_directory_exists() {
-        Ok(dir) => dir,
-        Err(_) => return String::new(),
+    // Use same path logic as save function
+    let base_path = if cfg!(target_os = "android") {
+        std::env::var("ANDROID_DATA")
+            .unwrap_or_else(|_| "/data/data".to_string())
+    } else {
+        std::env::var("HOME")
+            .unwrap_or_else(|_| "/tmp".to_string())
     };
     
-    let mut path = dir;
-    path.push(format!("{}.txt", title));
+    let notes_dir = if cfg!(target_os = "android") {
+        format!("{}/files/notes", base_path)
+    } else {
+        format!("{}/Documents/encrypted_notes", base_path)
+    };
+    
+    let path = PathBuf::from(format!("{}/{}.txt", notes_dir, title));
     
     match fs::read(&path) {
         Ok(encrypted_bytes) => {
             let decrypted_bytes = xor_encrypt_decrypt(&encrypted_bytes);
             match String::from_utf8(decrypted_bytes) {
-                Ok(content) => content,
-                Err(_) => String::new(),
+                Ok(content) => {
+                    println!("[Rust] Loaded note from {:?}", path);
+                    content
+                }
+                Err(e) => {
+                    eprintln!("[Rust] Failed to decode UTF-8: {}", e);
+                    String::new()
+                }
             }
         }
-        Err(_) => String::new(),
+        Err(e) => {
+            eprintln!("[Rust] Failed to read file {:?}: {}", path, e);
+            String::new()
+        }
     }
 }
 
 #[frb]
-pub fn list_note_titles() -> String {
+pub async fn list_note_titles() -> String {
     let dir = match ensure_directory_exists() {
         Ok(dir) => dir,
         Err(_) => return String::new(),
