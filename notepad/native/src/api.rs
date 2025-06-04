@@ -4,6 +4,28 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::Once;
 
+use std::sync::OnceLock;
+use sha2::{Sha256, Digest};
+use sha2::{Sha256, Digest};
+
+static DERIVED_KEY: OnceLock<[u8; 32]> = OnceLock::new();
+
+fn get_encryption_key() -> &'static [u8; 32] {
+    DERIVED_KEY.get_or_init(|| {
+        let mut hasher = Sha256::new();
+        hasher.update(b"NOTEPAD_SECRET_KEY_2025");
+        hasher.update(std::env::var("USER").unwrap_or_default().as_bytes());
+        let result = hasher.finalize();
+        result.into()
+    })
+}
+
+fn calculate_checksum(data: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    format!("{:x}", hasher.finalize())
+}
+
 static ENCRYPTION_KEY: &[u8] = b"NOTEPAD_SECRET_KEY_2025";
 static INIT: Once = Once::new();
 
@@ -42,7 +64,42 @@ fn xor_encrypt_decrypt(data: &[u8]) -> Vec<u8> {
         .collect()
 }
 
-// Another savenote func
+fn base64_decode(data: &str) -> Result<Vec<u8>, String> {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut result = Vec::new();
+    let data = data.trim();
+    
+    if data.len() % 4 != 0 {
+        return Err("Invalid base64 length".to_string());
+    }
+    
+    for chunk in data.as_bytes().chunks(4) {
+        let mut buf = [0u8; 4];
+        for (i, &byte) in chunk.iter().enumerate() {
+            buf[i] = match ALPHABET.iter().position(|&x| x == byte) {
+                Some(pos) => pos as u8,
+                None if byte == b'=' => 0,
+                None => return Err("Invalid base64 character".to_string()),
+            };
+        }
+        
+        let combined = ((buf[0] as u32) << 18)
+            | ((buf[1] as u32) << 12)
+            | ((buf[2] as u32) << 6)
+            | (buf[3] as u32);
+        
+        result.push((combined >> 16) as u8);
+        if chunk[2] != b'=' {
+            result.push((combined >> 8) as u8);
+        }
+        if chunk[3] != b'=' {
+            result.push(combined as u8);
+        }
+    }
+    
+    Ok(result)
+}
+
 #[frb]
 pub fn save_note_to_disk(title: String, content: String) -> bool {
     let sanitized = title.chars()
@@ -94,7 +151,6 @@ pub fn save_note_to_disk(title: String, content: String) -> bool {
 
 #[frb]
 pub fn load_note_from_disk(title: String) -> String {
-    // Use same path logic as save function
     let base_path = if cfg!(target_os = "android") {
         std::env::var("ANDROID_DATA")
             .unwrap_or_else(|_| "/data/data".to_string())
@@ -211,4 +267,51 @@ pub fn encrypt_text(text: String) -> String {
     let encrypted_bytes = xor_encrypt_decrypt(text.as_bytes());
     let encoded = base64_encode(&encrypted_bytes);
     format!("🔒 {}", encoded)
+}
+
+#[frb]
+pub fn decrypt_text(encrypted_text: String) -> String {
+    let clean_text = if encrypted_text.starts_with("🔒 ") {
+        &encrypted_text[4..]
+    } else {
+        &encrypted_text
+    };
+    
+    match base64_decode(clean_text) {
+        Ok(decoded_bytes) => {
+            let decrypted_bytes = xor_encrypt_decrypt(&decoded_bytes);
+            match String::from_utf8(decrypted_bytes) {
+                Ok(decrypted_text) => decrypted_text,
+                Err(e) => {
+                    eprintln!("[Rust] Failed to decode decrypted UTF-8: {}", e);
+                    String::new()
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("[Rust] Failed to decode base64: {}", e);
+            encrypted_text
+        }
+    }
+}
+//
+#[frb]
+pub fn get_notes_directory() -> Result<PathBuf, std::io::Error> {
+    let base_path = if cfg!(target_os = "android") {
+        std::env::var("ANDROID_DATA")
+            .map(|data| format!("{}/data/com.example.notepad/files", data))
+            .unwrap_or_else(|_| "/data/data/com.example.notepad/files".to_string())
+    } else {
+        std::env::var("HOME")
+            .map(|home| format!("{}/Documents/encrypted_notes", home))
+            .unwrap_or_else(|_| "/tmp/encrypted_notes".to_string())
+    };
+    
+    let notes_dir = PathBuf::from(format!("{}/notes", base_path));
+    
+    if !notes_dir.exists() {
+        std::fs::create_dir_all(&notes_dir)?;
+    }
+    
+    Ok(notes_dir)
 }

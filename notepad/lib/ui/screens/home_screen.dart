@@ -29,18 +29,7 @@ class _HomeScreenState extends State<HomeScreen>
     _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
     _controller.forward();
     _fetchNotes();
-    // _loadNotes();
   }
-
-  // void _loadNotes() async {
-  //   final dir = Directory('/home/ibrahim/docs/notes');
-  //   if (await dir.exists()) {
-  //     final files = dir.listSync().whereType<File>();
-  //     setState(() {
-  //       notes = files.map((f) => f.path.split('/').last).toList();
-  //     });
-  //   }
-  // }
 
   @override
   void dispose() {
@@ -52,11 +41,10 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() => _isLoading = true);
     try {
       List<String> allTitles = [];
-
       try {
         final titlesString =
             await RustLib.instance.api.crateApiListNoteTitles();
-            debugPrint('Rust returned titles: $titlesString');
+        debugPrint('Rust returned titles: $titlesString');
         if (titlesString.isNotEmpty) {
           allTitles.addAll(titlesString.split(';'));
         }
@@ -100,7 +88,6 @@ class _HomeScreenState extends State<HomeScreen>
                 const EditorScreen(initialTitle: '', initialContent: ''),
       ),
     );
-
     if (result == true) {
       _fetchNotes();
     }

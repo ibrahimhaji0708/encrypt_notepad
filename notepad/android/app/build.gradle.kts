@@ -38,11 +38,11 @@ android {
     }
     
     // Fixed sourceSets syntax for Kotlin DSL
-    // sourceSets {
-    //    main {
-    //        jniLibs.srcDirs = ['src/main/jniLibs']
-    //    }
-    // }
+    sourceSets {
+        getByName("main") {
+            java.srcDirs("src/main/kotlin")
+        }
+    }
     
     buildTypes {
         release {
