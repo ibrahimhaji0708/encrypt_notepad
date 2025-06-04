@@ -26,13 +26,21 @@ class _HomeScreenState extends State<HomeScreen>
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    _animation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
-    );
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
     _controller.forward();
     _fetchNotes();
+    // _loadNotes();
   }
+
+  // void _loadNotes() async {
+  //   final dir = Directory('/home/ibrahim/docs/notes');
+  //   if (await dir.exists()) {
+  //     final files = dir.listSync().whereType<File>();
+  //     setState(() {
+  //       notes = files.map((f) => f.path.split('/').last).toList();
+  //     });
+  //   }
+  // }
 
   @override
   void dispose() {
@@ -48,6 +56,7 @@ class _HomeScreenState extends State<HomeScreen>
       try {
         final titlesString =
             await RustLib.instance.api.crateApiListNoteTitles();
+            debugPrint('Rust returned titles: $titlesString');
         if (titlesString.isNotEmpty) {
           allTitles.addAll(titlesString.split(';'));
         }
@@ -62,9 +71,7 @@ class _HomeScreenState extends State<HomeScreen>
               directory
                   .listSync()
                   .where((file) => file.path.endsWith('.txt'))
-                  .map(
-                    (file) => path.basenameWithoutExtension(file.path),
-                  )
+                  .map((file) => path.basenameWithoutExtension(file.path))
                   .toList();
           allTitles.addAll(files);
         } catch (e) {
@@ -87,7 +94,11 @@ class _HomeScreenState extends State<HomeScreen>
   void _navigateToEditor() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const EditorScreen(initialTitle: '', initialContent: '')),
+      MaterialPageRoute(
+        builder:
+            (context) =>
+                const EditorScreen(initialTitle: '', initialContent: ''),
+      ),
     );
 
     if (result == true) {
@@ -124,10 +135,7 @@ class _HomeScreenState extends State<HomeScreen>
               child: Hero(
                 tag: 'create_button',
                 child: ElevatedButton.icon(
-                  onPressed:
-                      _isLoading
-                          ? null
-                          : _navigateToEditor,
+                  onPressed: _isLoading ? null : _navigateToEditor,
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size.fromHeight(50),
                     shape: RoundedRectangleBorder(

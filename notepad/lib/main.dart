@@ -1,24 +1,29 @@
-import 'dart:ffi';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
-// import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_ui/bridge_generated.dart/frb_generated.dart';
+
 import 'package:flutter_ui/ui/screens/editor_screen.dart';
 import 'package:flutter_ui/ui/screens/home_screen.dart';
 
-// final dylibPath = 'native/target/release/librust_lib_notepad.so';
-// final dylib = DynamicLibrary.open(dylibPath);
-// final dylib = DynamicLibrary.open('librust_lib_notepad.so');
-
+String getRustLibPath() {
+  if (Platform.isAndroid) {
+    return "librust_lib_notepad.so";
+  } else if (Platform.isLinux) {
+    return "/home/ibrahim/code/Rust_lang/encrypt_notepad/notepad/native/target/x86_64-unknown-linux-gnu/release/librust_lib_notepad.so";
+  } else if (Platform.isMacOS) {
+    return "librust_lib_notepad.dylib";
+  } else {
+    throw UnsupportedError("Unsupported platform");
+  }
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    await RustLib.init(
-      externalLibrary: ExternalLibrary.open('librust_lib_notepad.so'),
-    );
+    await RustLib.init(externalLibrary: ExternalLibrary.open(getRustLibPath()));
     print("Rust lib initialized successfully");
   } catch (e) {
     print("Failed to initialize Rust lib: $e");
