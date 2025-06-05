@@ -6,7 +6,6 @@ use std::sync::Once;
 
 use std::sync::OnceLock;
 use sha2::{Sha256, Digest};
-use sha2::{Sha256, Digest};
 
 static DERIVED_KEY: OnceLock<[u8; 32]> = OnceLock::new();
 
