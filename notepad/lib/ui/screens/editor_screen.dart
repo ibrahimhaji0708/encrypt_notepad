@@ -27,7 +27,7 @@ class _EditorScreenState extends State<EditorScreen> {
   bool _isEncrypted = false;
   bool _hasChanges = false;
   bool _isSaving = false;
-  bool _autoSaveEnabled = true;
+  final bool _autoSaveEnabled = true;
   late FocusNode _titleFocus;
   late FocusNode _contentFocus;
   Timer? _autoSaveTimer;
