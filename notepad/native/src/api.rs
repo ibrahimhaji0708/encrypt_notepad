@@ -293,9 +293,9 @@ pub fn decrypt_text(encrypted_text: String) -> String {
         }
     }
 }
-//
+
 #[frb]
-pub fn get_notes_directory() -> Result<PathBuf, std::io::Error> {
+pub fn get_notes_directory() -> Result<String, anyhow::Error> {
     let base_path = if cfg!(target_os = "android") {
         std::env::var("ANDROID_DATA")
             .map(|data| format!("{}/data/com.example.notepad/files", data))
@@ -312,5 +312,5 @@ pub fn get_notes_directory() -> Result<PathBuf, std::io::Error> {
         std::fs::create_dir_all(&notes_dir)?;
     }
     
-    Ok(notes_dir)
+    Ok(notes_dir.to_string_lossy().to_string())
 }

@@ -26,8 +26,5 @@ Future<String> encryptText({required String text}) =>
 Future<String> decryptText({required String encryptedText}) =>
     RustLib.instance.api.crateApiDecryptText(encryptedText: encryptedText);
 
-Future<PathBuf> getNotesDirectory() =>
+Future<String> getNotesDirectory() =>
     RustLib.instance.api.crateApiGetNotesDirectory();
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PathBuf>>
-abstract class PathBuf implements RustOpaqueInterface {}
