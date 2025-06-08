@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_ui/bridge_generated.dart/frb_generated.dart' as bridge;
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter_ui/ui/screens/bloc/notepad_bloc.dart';
+import 'package:flutter_ui/ui/screens/bloc/notepad_event.dart';
+import 'package:flutter_ui/ui/screens/bloc/notepad_state.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter_ui/bridge_generated.dart/frb_generated.dart';
 
 class EditorScreen extends StatefulWidget {
   final String initialTitle;
@@ -27,7 +29,7 @@ class _EditorScreenState extends State<EditorScreen> {
   bool _isEncrypted = false;
   bool _hasChanges = false;
   bool _isSaving = false;
-  bool _autoSaveEnabled = true;
+  final bool _autoSaveEnabled = true;
   late FocusNode _titleFocus;
   late FocusNode _contentFocus;
   Timer? _autoSaveTimer;
@@ -90,15 +92,27 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Future<void> _performAutoSave() async {
+    if (_isSaving) return;
+
+    setState(() => _isSaving = true);
+
     try {
-      if (await _saveNoteInternal()) {
-        setState(() {
-          _lastSaved = DateTime.now();
-        });
-        _showToast('Auto-saved');
-      }
+      final bloc = context.read<NotepadBloc>();
+      bloc.add(
+        SaveNoteEvent(
+          title: _titleController.text.trim(),
+          content: _contentController.text.trim(),
+        ),
+      );
+
+      setState(() {
+        _lastSaved = DateTime.now();
+      });
+      _showToast('Auto-saved');
     } catch (e) {
       debugPrint('Auto-save failed: $e');
+    } finally {
+      setState(() => _isSaving = false);
     }
   }
 
@@ -117,9 +131,19 @@ class _EditorScreenState extends State<EditorScreen> {
 
   Future<void> _toggleEncryption() async {
     if (_isEncrypted) {
-      setState(() {
-        _isEncrypted = false;
-      });
+      setState(() => _isLoading = true);
+      try {
+        final decryptedContent = await bridge.RustLib.instance.api
+            .crateApiDecryptText(encryptedText: _contentController.text);
+        setState(() {
+          _contentController.text = decryptedContent;
+          _isEncrypted = false;
+        });
+      } catch (e) {
+        _showError('Decryption failed: ${e.toString()}');
+      } finally {
+        setState(() => _isLoading = false);
+      }
     } else {
       setState(() => _isLoading = true);
       try {
@@ -149,14 +173,6 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
-  Future<Directory> _getSafeDirectory() async {
-    if (Platform.isAndroid) {
-      return await getApplicationDocumentsDirectory();
-    } else {
-      return await getTemporaryDirectory();
-    }
-  }
-
   void _showError(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -169,120 +185,27 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
-  Future<void> _handleSaveWithSafety(BuildContext context) async {
-    if (_isSaving) return;
-    setState(() {
-      _isSaving = true;
-    });
-    try {
-      if (Platform.isAndroid) {
-        await requestStoragePermission();
-      }
-      final success = await _saveNoteInternal();
-      if (success && context.mounted) {
-        _showSuccessSnackBar('Note saved successfully');
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      debugPrint('Save error: $e');
-      _showError('Error: ${e.toString()}');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
-    }
-  }
-
-  Future<bool> _saveNoteInternal() async {
+  Future<void> _saveNote() async {
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
 
     if (title.isEmpty) {
-      _showErrorSnackBar('Title cannot be empty');
+      _showError('Title cannot be empty');
       _titleFocus.requestFocus();
-      return false;
+      return;
     }
     if (content.isEmpty) {
-      _showErrorSnackBar('Content cannot be empty');
+      _showError('Content cannot be empty');
       _contentFocus.requestFocus();
-      return false;
+      return;
     }
 
-    setState(() => _isLoading = true);
-
-    try {
-      bool saved = false;
-
-      if (Platform.isAndroid) {
-        try {
-          final directory = await _getSafeDirectory();
-          final fileName = '${title.replaceAll(RegExp(r'[^\w\s]+'), '')}.txt';
-          final filePath = '${directory.path}/$fileName';
-          final file = File(filePath);
-          await file.writeAsString(content);
-          saved = true;
-          debugPrint("Flutter save successful: $filePath");
-        } catch (e) {
-          debugPrint("Flutter save failed: $e");
-        }
-      }
-
-      if (!saved) {
-        try {
-          saved = await RustLib.instance.api.crateApiSaveNoteToDisk(
-            title: title,
-            content: content,
-          );
-          if (saved) {
-            debugPrint("Rust save successful");
-          }
-        } catch (e) {
-          debugPrint("Rust save failed: $e");
-        }
-      }
-
-      return saved;
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+    if (Platform.isAndroid) {
+      await requestStoragePermission();
     }
-  }
 
-  Future<void> _saveNote() async {
-    final success = await _saveNoteInternal();
-    if (success) {
-      _showSuccessSnackBar('Note saved successfully');
-      if (mounted) {
-        Navigator.pop(context, true);
-      }
-    } else {
-      _showErrorSnackBar('Failed to save note');
-    }
-  }
-
-  void _showErrorSnackBar(String message) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  void _showSuccessSnackBar(String message) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.greenAccent.shade700,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    final bloc = context.read<NotepadBloc>();
+    bloc.add(SaveNoteEvent(title: title, content: content));
   }
 
   Future<bool> _onWillPop() async {
@@ -369,174 +292,194 @@ class _EditorScreenState extends State<EditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) async {
-        if (didPop) return;
-        final result = await _onWillPop();
-        if (result && context.mounted) {
-          Navigator.of(context).pop();
+    return BlocListener<NotepadBloc, NotepadState>(
+      listener: (context, state) {
+        if (state is NotepadLoaded) {
+          _showToast('Note saved successfully');
+          setState(() {
+            _hasChanges = false;
+            _isSaving = false;
+            _lastSaved = DateTime.now();
+          });
+          if (widget.initialTitle.isEmpty) {
+            Navigator.of(context).pop(true);
+          }
+        } else if (state is NotepadError) {
+          _showError('Failed to save note: ${state.message}');
+          setState(() {
+            _isSaving = false;
+          });
+        } else if (state is NotepadLoading) {
+          setState(() {
+            _isSaving = true;
+          });
         }
       },
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(widget.initialTitle.isEmpty ? 'New Note' : 'Edit Note'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.info_outline),
-              onPressed: _showStatsDialog,
-              tooltip: 'Statistics',
-            ),
-            IconButton(
-              icon: Icon(_isEncrypted ? Icons.lock : Icons.lock_open),
-              onPressed: _isLoading ? null : _toggleEncryption,
-              tooltip: _isEncrypted ? 'Encrypted' : 'Encrypt',
-            ),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child:
-                  _hasChanges
-                      ? IconButton(
-                        key: const ValueKey('save'),
-                        icon:
-                            _isSaving
-                                ? const SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                                : const Icon(Icons.save),
-                        onPressed:
-                            (_isLoading || _isSaving)
-                                ? null
-                                : () => _handleSaveWithSafety(context),
-                        tooltip: 'Save',
-                      )
-                      : const SizedBox(width: 48),
-            ),
-          ],
-        ),
-        body:
-            _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : GestureDetector(
-                  onTap: () {
-                    FocusScope.of(context).unfocus();
-                  },
-                  child: Column(
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surface.withOpacity(0.3),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Words: $wordCount • Characters: $charCount',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            if (_lastSaved != null && _autoSaveEnabled)
-                              Text(
-                                'Auto-saved ${_formatTime(_lastSaved!)}',
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: Colors.green),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
+      child: PopScope(
+        canPop: false,
+        onPopInvoked: (didPop) async {
+          if (didPop) return;
+          final result = await _onWillPop();
+          if (result && context.mounted) {
+            Navigator.of(context).pop();
+          }
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text(widget.initialTitle.isEmpty ? 'New Note' : 'Edit Note'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.info_outline),
+                onPressed: _showStatsDialog,
+                tooltip: 'Statistics',
+              ),
+              IconButton(
+                icon: Icon(_isEncrypted ? Icons.lock : Icons.lock_open),
+                onPressed: _isLoading ? null : _toggleEncryption,
+                tooltip: _isEncrypted ? 'Decrypt' : 'Encrypt',
+              ),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child:
+                    _hasChanges
+                        ? IconButton(
+                          key: const ValueKey('save'),
+                          icon:
+                              _isSaving
+                                  ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                  : const Icon(Icons.save),
+                          onPressed:
+                              (_isLoading || _isSaving) ? null : _saveNote,
+                          tooltip: 'Save',
+                        )
+                        : const SizedBox(width: 48),
+              ),
+            ],
+          ),
+          body:
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : GestureDetector(
+                    onTap: () {
+                      FocusScope.of(context).unfocus();
+                    },
+                    child: Column(
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surface.withOpacity(0.3),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  color: Theme.of(context).colorScheme.surface,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                                child: TextField(
-                                  controller: _titleController,
-                                  focusNode: _titleFocus,
-                                  decoration: const InputDecoration(
-                                    hintText: 'Note Title',
-                                    border: InputBorder.none,
-                                    counter: SizedBox.shrink(),
-                                  ),
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  maxLength: 50,
-                                ),
+                              Text(
+                                'Words: $wordCount • Characters: $charCount',
+                                style: Theme.of(context).textTheme.bodySmall,
                               ),
-                              const SizedBox(height: 16),
-                              Expanded(
-                                child: Container(
+                              if (_lastSaved != null && _autoSaveEnabled)
+                                Text(
+                                  'Auto-saved ${_formatTime(_lastSaved!)}',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: Colors.green),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              children: [
+                                Container(
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(12),
                                     color:
                                         Theme.of(context).colorScheme.surface,
                                   ),
-                                  padding: const EdgeInsets.all(16),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
                                   child: TextField(
-                                    controller: _contentController,
-                                    focusNode: _contentFocus,
-                                    maxLines: null,
-                                    expands: true,
+                                    controller: _titleController,
+                                    focusNode: _titleFocus,
                                     decoration: const InputDecoration(
-                                      hintText: 'Write your note here...',
+                                      hintText: 'Note Title',
                                       border: InputBorder.none,
+                                      counter: SizedBox.shrink(),
                                     ),
                                     style: const TextStyle(
-                                      fontSize: 16,
-                                      height: 1.5,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLength: 50,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Expanded(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(12),
+                                      color:
+                                          Theme.of(context).colorScheme.surface,
+                                    ),
+                                    padding: const EdgeInsets.all(16),
+                                    child: TextField(
+                                      controller: _contentController,
+                                      focusNode: _contentFocus,
+                                      maxLines: null,
+                                      expands: true,
+                                      decoration: const InputDecoration(
+                                        hintText: 'Write your note here...',
+                                        border: InputBorder.none,
+                                      ),
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        height: 1.5,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-        floatingActionButton: AnimatedOpacity(
-          opacity: _hasChanges ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 200),
-          child:
-              _hasChanges
-                  ? FloatingActionButton(
-                    onPressed:
-                        (_isLoading || _isSaving)
-                            ? null
-                            : () => _handleSaveWithSafety(context),
-                    tooltip: 'Save Note',
-                    child:
-                        _isSaving
-                            ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                            : const Icon(Icons.save),
-                  )
-                  : const SizedBox.shrink(),
+          floatingActionButton: AnimatedOpacity(
+            opacity: _hasChanges ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            child:
+                _hasChanges
+                    ? FloatingActionButton(
+                      onPressed: (_isLoading || _isSaving) ? null : _saveNote,
+                      tooltip: 'Save Note',
+                      child:
+                          _isSaving
+                              ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                              : const Icon(Icons.save),
+                    )
+                    : const SizedBox.shrink(),
+          ),
         ),
       ),
     );
